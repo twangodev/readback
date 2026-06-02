@@ -39,6 +39,7 @@ def build(spec: ModelSpec) -> Transcriber:
             spec.name,
             from_path=spec.options.get("from_path", False),
             batch_size=spec.options.get("batch_size", 64),
+            beam_size=spec.options.get("beam_size", 1),
         )
     if spec.kind == "canary":
         from readback.models.canary import CanaryQwenTranscriber
