@@ -7,6 +7,7 @@ import numpy as np
 from readback.models.base import Audio, Hypothesis
 
 TARGET_SR = 16000
+MIN_SAMPLES = 1600
 
 
 @contextlib.contextmanager
@@ -55,15 +56,21 @@ class ParakeetTranscriber:
     ) -> list[Hypothesis]:
         if not clips:
             return []
-        arrays = [_to_target_sr(clip.array, clip.sample_rate) for clip in clips]
+        arrays = [
+            _pad_to_min(_to_target_sr(clip.array, clip.sample_rate)) for clip in clips
+        ]
+        order = sorted(range(len(arrays)), key=lambda index: len(arrays[index]))
         outputs = self._model.transcribe(
-            audio=arrays,
+            audio=[arrays[index] for index in order],
             batch_size=min(self._batch_size, len(arrays)),
             verbose=False,
         )
         if isinstance(outputs, tuple):
             outputs = outputs[0]
-        return [Hypothesis(text=_text_of(output)) for output in outputs]
+        results: list[Hypothesis | None] = [None] * len(arrays)
+        for index, output in zip(order, outputs):
+            results[index] = Hypothesis(text=_text_of(output))
+        return [result for result in results if result is not None]
 
 
 def _to_target_sr(audio: np.ndarray, sample_rate: int) -> np.ndarray:
@@ -74,6 +81,12 @@ def _to_target_sr(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     return librosa.resample(
         audio.astype(np.float32), orig_sr=sample_rate, target_sr=TARGET_SR
     )
+
+
+def _pad_to_min(audio: np.ndarray) -> np.ndarray:
+    if len(audio) >= MIN_SAMPLES:
+        return audio
+    return np.pad(audio, (0, MIN_SAMPLES - len(audio)))
 
 
 def _text_of(output: object) -> str:
