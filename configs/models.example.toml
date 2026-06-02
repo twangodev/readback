@@ -1,0 +1,18 @@
+[models.parakeet-v2]
+kind = "parakeet"
+ref = "nvidia/parakeet-tdt-0.6b-v2"
+batch_size = 64
+
+[models.canary-qwen]
+kind = "canary"
+ref = "nvidia/canary-qwen-2.5b"
+
+[models.whisper-atc]
+kind = "whisper"
+ref = "/path/to/ct2/whisper-jlvdoorn-atco2"
+
+[models.rasr-v1]
+kind = "parakeet"
+ref = "/path/to/parakeet-radiotalk/final.nemo"
+from_path = true
+batch_size = 64
