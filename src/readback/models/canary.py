@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from math import exp
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -27,6 +28,7 @@ class CanaryQwenTranscriber:
         self._model = model
         self._max_new_tokens = max_new_tokens
         self._batch_size = batch_size
+        self._pad_id = model.text_pad_id
         locator = getattr(model, "audio_locator_tag", "<audio>")
         self._prompt = f"Transcribe the following: {locator}"
 
@@ -47,16 +49,36 @@ class CanaryQwenTranscriber:
                 for i in indices
             ]
             audios, audio_lens = _collate(waves, self._model.device)
-            answer_ids = self._model.generate(
+            generated = self._model.generate(
                 prompts=[[{"role": "user", "content": self._prompt}] for _ in indices],
                 audios=audios,
                 audio_lens=audio_lens,
                 max_new_tokens=self._max_new_tokens,
+                return_dict_in_generate=True,
+                output_scores=True,
             )
-            for index, row in zip(indices, answer_ids):
-                text = self._model.tokenizer.ids_to_text(row.cpu())
-                results[index] = Hypothesis(text=text.strip())
+            sequences = getattr(generated, "sequences")
+            confidences = _confidences(generated, self._pad_id)
+            for index, sequence, confidence in zip(indices, sequences, confidences):
+                text = self._model.tokenizer.ids_to_text(sequence.cpu())
+                results[index] = Hypothesis(text=text.strip(), confidence=confidence)
         return [result for result in results if result is not None]
+
+
+def _confidences(generated, pad_id: int) -> list[float]:
+    import torch
+
+    sequences = generated.sequences
+    total = torch.zeros(sequences.shape[0], device=sequences.device)
+    count = torch.zeros(sequences.shape[0], device=sequences.device)
+    for step, logits in enumerate(generated.scores):
+        token = sequences[:, step]
+        chosen = logits.log_softmax(dim=-1).gather(1, token.unsqueeze(1)).squeeze(1)
+        keep = (token != pad_id).float()
+        total += chosen * keep
+        count += keep
+    averaged = total / count.clamp(min=1)
+    return [exp(min(0.0, value)) for value in averaged.tolist()]
 
 
 def _collate(waves: list[np.ndarray], device: torch.device):

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from math import exp
 
 import numpy as np
 
@@ -92,12 +93,14 @@ class ParakeetTranscriber:
 
     def _hypothesis(self, output: object) -> Hypothesis:
         if self._beam_size <= 1:
-            return Hypothesis(text=_text_of(output))
+            return Hypothesis(text=_text_of(output), confidence=_confidence_of(output))
         beams = output if isinstance(output, list) else [output]
         nbest = tuple((_text_of(beam), _score_of(beam)) for beam in beams)
         if not nbest:
             return Hypothesis(text="")
-        return Hypothesis(text=nbest[0][0], nbest=nbest)
+        return Hypothesis(
+            text=nbest[0][0], confidence=_confidence_of(beams[0]), nbest=nbest
+        )
 
 
 def _pad_to_min(audio: np.ndarray) -> np.ndarray:
@@ -113,3 +116,11 @@ def _text_of(output: object) -> str:
 
 def _score_of(output: object) -> float:
     return float(getattr(output, "score", 0.0))
+
+
+def _confidence_of(output: object) -> float | None:
+    score = getattr(output, "score", None)
+    sequence = getattr(output, "y_sequence", None)
+    if score is None or sequence is None or len(sequence) == 0:
+        return None
+    return exp(min(0.0, float(score) / len(sequence)))
