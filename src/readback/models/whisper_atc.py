@@ -5,75 +5,95 @@ from math import exp
 from readback.audio import to_target_sr
 from readback.models.base import Audio, Hypothesis
 
+TARGET_SR = 16000
+
 
 class WhisperAtcTranscriber:
     name = "whisper-atc"
 
     def __init__(
         self,
-        model_dir: str,
-        device: str = "cuda",
-        compute_type: str = "float16",
+        model_id: str,
         batch_size: int = 16,
+        dtype: str = "float16",
+        beam_size: int = 5,
     ) -> None:
-        from faster_whisper import WhisperModel
-        from faster_whisper.tokenizer import Tokenizer
+        import torch
+        from transformers import (
+            WhisperForConditionalGeneration,
+            WhisperProcessor,
+            WhisperTokenizer,
+        )
 
-        self._model = WhisperModel(model_dir, device=device, compute_type=compute_type)
-        self._tokenizer = Tokenizer(
-            self._model.hf_tokenizer,
-            self._model.model.is_multilingual,
-            task="transcribe",
-            language="en",
+        self._processor = WhisperProcessor.from_pretrained(model_id)
+        tokenizer = WhisperTokenizer.from_pretrained(model_id)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        self._model = (
+            WhisperForConditionalGeneration.from_pretrained(
+                model_id, dtype=getattr(torch, dtype)
+            )
+            .to(device)
+            .eval()
         )
         self._batch_size = batch_size
-        self._target_sr = self._model.feature_extractor.sampling_rate
+        self._beam_size = beam_size
+        self._no_speech_id = tokenizer.convert_tokens_to_ids("<|nospeech|>")
+        self._prefix = [
+            self._model.config.decoder_start_token_id,
+            tokenizer.convert_tokens_to_ids("<|startoftranscript|>"),
+        ]
 
     def transcribe(
         self, clips: list[Audio], bias_terms: list[str] | None = None
     ) -> list[Hypothesis]:
-        import numpy as np
-        from faster_whisper.audio import pad_or_trim
-
         if not clips:
             return []
-        hotwords = " ".join(bias_terms) if bias_terms else None
-        prompt = self._model.get_prompt(
-            self._tokenizer, [], without_timestamps=True, hotwords=hotwords
-        )
         results: list[Hypothesis] = []
         for start in range(0, len(clips), self._batch_size):
-            chunk = clips[start : start + self._batch_size]
-            features = np.stack([self._features(clip, pad_or_trim) for clip in chunk])
-            encoder_output = self._model.encode(features)
-            outputs = self._model.model.generate(
-                encoder_output,
-                [prompt.copy() for _ in chunk],
-                beam_size=5,
-                patience=1,
-                length_penalty=1,
-                max_length=self._model.max_length,
-                suppress_blank=True,
-                suppress_tokens=[-1],
-                return_scores=True,
-                return_no_speech_prob=True,
-                sampling_temperature=0.0,
+            results.extend(
+                self._transcribe_batch(clips[start : start + self._batch_size])
             )
-            results.extend(_decode(self._tokenizer, outputs))
         return results
 
-    def _features(self, clip: Audio, pad_or_trim):
-        waveform = to_target_sr(clip.array, clip.sample_rate, self._target_sr)
-        return pad_or_trim(self._model.feature_extractor(waveform)[..., :-1])
+    def _transcribe_batch(self, clips: list[Audio]) -> list[Hypothesis]:
+        import torch
 
+        waveforms = [
+            to_target_sr(clip.array, clip.sample_rate, TARGET_SR) for clip in clips
+        ]
+        features = self._processor(
+            waveforms, sampling_rate=TARGET_SR, return_tensors="pt"
+        ).input_features.to(self._model.device, self._model.dtype)
 
-def _decode(tokenizer, outputs):
-    for result in outputs:
-        tokens = result.sequences_ids[0] if result.sequences_ids else []
-        seq_len = len(tokens)
-        avg_logprob = result.scores[0] * seq_len / (seq_len + 1) if seq_len else 0.0
-        yield Hypothesis(
-            text=tokenizer.decode(tokens).strip(),
-            confidence=exp(avg_logprob),
-            no_speech=result.no_speech_prob,
+        with torch.no_grad():
+            no_speech = self._no_speech_probs(features)
+            generated = self._model.generate(
+                input_features=features,
+                language="en",
+                task="transcribe",
+                num_beams=self._beam_size,
+                return_dict_in_generate=True,
+                output_scores=True,
+            )
+        texts = self._processor.batch_decode(
+            generated.sequences, skip_special_tokens=True
         )
+        confidences = [
+            exp(min(0.0, score)) for score in generated.sequences_scores.tolist()
+        ]
+        return [
+            Hypothesis(text=text.strip(), confidence=confidence, no_speech=prob)
+            for text, confidence, prob in zip(texts, confidences, no_speech)
+        ]
+
+    def _no_speech_probs(self, features) -> list[float]:
+        import torch
+
+        prefix = (
+            torch.tensor(self._prefix, dtype=torch.long, device=features.device)
+            .unsqueeze(0)
+            .expand(features.shape[0], -1)
+        )
+        logits = self._model(input_features=features, decoder_input_ids=prefix).logits
+        probs = logits[:, -1].float().softmax(dim=-1)
+        return probs[:, self._no_speech_id].tolist()

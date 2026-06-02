@@ -10,8 +10,8 @@ batch_size = 32
 
 [models.whisper-atc]
 kind = "whisper"
-ref = "/path/to/ct2/whisper-jlvdoorn-atco2"
-batch_size = 32
+ref = "jlvdoorn/whisper-large-v3-atco2-asr"
+batch_size = 16
 
 [models.rasr-v1]
 kind = "parakeet"

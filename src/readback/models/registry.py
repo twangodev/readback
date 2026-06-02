@@ -53,8 +53,8 @@ def build(spec: ModelSpec) -> Transcriber:
 
         return WhisperAtcTranscriber(
             spec.ref,
-            device=spec.options.get("device", "cuda"),
-            compute_type=spec.options.get("compute_type", "float16"),
             batch_size=spec.options.get("batch_size", 16),
+            dtype=spec.options.get("dtype", "float16"),
+            beam_size=spec.options.get("beam_size", 5),
         )
     raise ValueError(f"unknown model kind: {spec.kind!r}")
