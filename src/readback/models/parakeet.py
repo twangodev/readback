@@ -11,7 +11,7 @@ TARGET_SR = 16000
 
 @contextlib.contextmanager
 def _trusted_unpickling():
-    import torch  # ty: ignore[unresolved-import]
+    import torch
 
     original = torch.load
 
@@ -35,8 +35,8 @@ class ParakeetTranscriber:
         from_path: bool = False,
         batch_size: int = 64,
     ) -> None:
-        import nemo.collections.asr as nemo_asr  # ty: ignore[unresolved-import]
-        import torch  # ty: ignore[unresolved-import]
+        import nemo.collections.asr as nemo_asr
+        import torch
 
         if from_path:
             with _trusted_unpickling():
@@ -69,7 +69,7 @@ class ParakeetTranscriber:
 def _to_target_sr(audio: np.ndarray, sample_rate: int) -> np.ndarray:
     if sample_rate == TARGET_SR:
         return audio.astype(np.float32)
-    import librosa  # ty: ignore[unresolved-import]
+    import librosa
 
     return librosa.resample(
         audio.astype(np.float32), orig_sr=sample_rate, target_sr=TARGET_SR

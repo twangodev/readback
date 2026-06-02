@@ -11,7 +11,7 @@ class WhisperAtcTranscriber:
     def __init__(
         self, model_dir: str, device: str = "cuda", compute_type: str = "float16"
     ) -> None:
-        from faster_whisper import WhisperModel  # ty: ignore[unresolved-import]
+        from faster_whisper import WhisperModel
 
         self._model = WhisperModel(model_dir, device=device, compute_type=compute_type)
 

@@ -12,8 +12,8 @@ class CanaryQwenTranscriber:
     name = "canary-qwen"
 
     def __init__(self, model_ref: str, max_new_tokens: int = 256) -> None:
-        import nemo.collections.speechlm2.models as speechlm2  # ty: ignore[unresolved-import]
-        import torch  # ty: ignore[unresolved-import]
+        import nemo.collections.speechlm2.models as speechlm2
+        import torch
 
         model = speechlm2.SALM.from_pretrained(model_ref)
         if torch.cuda.is_available():
