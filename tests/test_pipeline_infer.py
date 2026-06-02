@@ -6,7 +6,7 @@ from readback import store
 from readback.data import Clip
 from readback.models.base import Audio, Hypothesis
 from readback.models.registry import ModelSpec
-from readback.pipeline.infer import run_infer
+from readback.pipeline.infer import run_infer, run_infer_parallel
 from readback.pipeline.layout import hyps_path, meta_path
 
 SHARDS = {
@@ -147,3 +147,54 @@ def test_run_infer_resumes_only_missing_shards(tmp_path):
     )
     assert loaded == ["m1"]
     assert batches == [1]
+
+
+class MetaOnlySource:
+    def list_indices(self):
+        return []
+
+    def meta(self, index):
+        return [{"utterance_id": f"u{index}", "airport": "k", "tails": []}]
+
+    def clips(self, index):
+        return []
+
+
+def test_run_infer_parallel_partitions_shards_round_robin(tmp_path):
+    captured = []
+
+    def fake_runner(config_path, name, run, repo, groups, log):
+        captured.append((name, groups))
+
+    run_infer_parallel(
+        tmp_path / "cfg.toml",
+        ["m1"],
+        [0, 1, 2, 3, 4],
+        tmp_path,
+        replicas=2,
+        repo="r",
+        source=MetaOnlySource(),
+        run_workers=fake_runner,
+        log=lambda _: None,
+    )
+    assert meta_path(tmp_path, 0).exists()
+    assert captured == [("m1", [[0, 2, 4], [1, 3]])]
+
+
+def test_run_infer_parallel_skips_completed_models(tmp_path):
+    for index in (0, 1):
+        store.write_jsonl(hyps_path(tmp_path, "m1", index), [{"utterance_id": "u"}])
+
+    captured = []
+    run_infer_parallel(
+        tmp_path / "cfg.toml",
+        ["m1"],
+        [0, 1],
+        tmp_path,
+        replicas=2,
+        repo="r",
+        source=MetaOnlySource(),
+        run_workers=lambda *a: captured.append(a),
+        log=lambda _: None,
+    )
+    assert captured == []

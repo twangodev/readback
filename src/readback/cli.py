@@ -7,7 +7,7 @@ import typer
 
 from readback.data import DEFAULT_REPO, HfShardSource, parse_shard_spec
 from readback.models.registry import load_specs
-from readback.pipeline import run_fuse, run_infer
+from readback.pipeline import run_fuse, run_infer, run_infer_parallel
 from readback.pipeline.layout import discover_indices
 
 app = typer.Typer(add_completion=False, help="Ensemble ASR pseudo-labeling for ATC.")
@@ -30,6 +30,9 @@ def infer(
     models: Annotated[
         str, typer.Option(help="Comma list; default every model in the config.")
     ] = "",
+    replicas: Annotated[
+        int, typer.Option(help="Data-parallel worker processes per model.")
+    ] = 1,
 ) -> None:
     specs = load_specs(config)
     chosen = _comma_list(models) or list(specs)
@@ -38,7 +41,10 @@ def infer(
         raise typer.BadParameter(f"models not in config: {missing}")
     source = HfShardSource(repo)
     indices = source.list_indices() if shards == "all" else parse_shard_spec(shards)
-    run_infer(source, specs, chosen, indices, run)
+    if replicas > 1:
+        run_infer_parallel(config, chosen, indices, run, replicas=replicas, repo=repo)
+    else:
+        run_infer(source, specs, chosen, indices, run)
 
 
 @app.command()
