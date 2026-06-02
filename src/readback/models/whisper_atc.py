@@ -72,7 +72,6 @@ class WhisperAtcTranscriber:
                 language="en",
                 task="transcribe",
                 num_beams=self._beam_size,
-                num_return_sequences=self._beam_size,
                 return_dict_in_generate=True,
                 output_scores=True,
             )
@@ -80,22 +79,10 @@ class WhisperAtcTranscriber:
             generated.sequences, skip_special_tokens=True
         )
         scores = [exp(min(0.0, score)) for score in generated.sequences_scores.tolist()]
-        results = []
-        for index, prob in enumerate(no_speech):
-            group = slice(index * self._beam_size, (index + 1) * self._beam_size)
-            nbest = tuple(
-                (text.strip(), score)
-                for text, score in zip(texts[group], scores[group])
-            )
-            results.append(
-                Hypothesis(
-                    text=nbest[0][0],
-                    confidence=nbest[0][1],
-                    no_speech=prob,
-                    nbest=nbest,
-                )
-            )
-        return results
+        return [
+            Hypothesis(text=text.strip(), confidence=confidence, no_speech=prob)
+            for text, confidence, prob in zip(texts, scores, no_speech)
+        ]
 
     def _no_speech_probs(self, features) -> list[float]:
         import torch
