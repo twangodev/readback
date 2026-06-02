@@ -14,6 +14,9 @@ WorkerRunner = Callable[[Path, str, Path, str, "list[list[int]]", Logger], None]
 
 
 def release_gpu() -> None:
+    import gc
+
+    gc.collect()
     try:
         import torch
     except ImportError:
