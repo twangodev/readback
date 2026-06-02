@@ -17,6 +17,7 @@ class WhisperAtcTranscriber:
         batch_size: int = 16,
         dtype: str = "float16",
         beam_size: int = 5,
+        max_new_tokens: int = 128,
     ) -> None:
         import torch
         from transformers import (
@@ -37,6 +38,7 @@ class WhisperAtcTranscriber:
         )
         self._batch_size = batch_size
         self._beam_size = beam_size
+        self._max_new_tokens = max_new_tokens
         self._no_speech_id = tokenizer.convert_tokens_to_ids("<|nospeech|>")
         self._prefix = [
             self._model.config.decoder_start_token_id,
@@ -72,6 +74,7 @@ class WhisperAtcTranscriber:
                 language="en",
                 task="transcribe",
                 num_beams=self._beam_size,
+                max_new_tokens=self._max_new_tokens,
                 return_dict_in_generate=True,
                 output_scores=True,
             )

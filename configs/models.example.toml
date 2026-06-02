@@ -8,11 +8,13 @@ beam_size = 4
 kind = "canary"
 ref = "nvidia/canary-qwen-2.5b"
 batch_size = 32
+max_new_tokens = 96
 
 [models.whisper-atc]
 kind = "whisper"
 ref = "jlvdoorn/whisper-large-v3-atco2-asr"
 batch_size = 16
+max_new_tokens = 128
 
 [models.rasr-v1]
 kind = "parakeet"

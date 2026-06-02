@@ -57,5 +57,6 @@ def build(spec: ModelSpec) -> Transcriber:
             batch_size=spec.options.get("batch_size", 16),
             dtype=spec.options.get("dtype", "float16"),
             beam_size=spec.options.get("beam_size", 5),
+            max_new_tokens=spec.options.get("max_new_tokens", 128),
         )
     raise ValueError(f"unknown model kind: {spec.kind!r}")
