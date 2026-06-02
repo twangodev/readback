@@ -7,6 +7,7 @@ import airwer
 from rapidfuzz import fuzz
 
 MATCH_THRESHOLD = 0.85
+SNAP_MAX_SCORE = 0.98
 
 
 @dataclass(frozen=True, slots=True)
@@ -15,6 +16,13 @@ class CallsignMatch:
     tail: str | None
     score: float
     n_tails: int
+
+
+@dataclass(frozen=True, slots=True)
+class SnapResult:
+    text: str
+    match: CallsignMatch
+    snapped: bool
 
 
 def verify(transcript: str, tails: list[str]) -> CallsignMatch:
@@ -33,6 +41,22 @@ def verify(transcript: str, tails: list[str]) -> CallsignMatch:
         score=best_score,
         n_tails=len(present),
     )
+
+
+def snap(transcript: str, tails: list[str]) -> SnapResult:
+    spoken = airwer.normalize(transcript)
+    match = verify(spoken, tails)
+    if not match.matched or match.tail is None or match.score >= SNAP_MAX_SCORE:
+        return SnapResult(text=spoken, match=match, snapped=False)
+    canonical = airwer.normalize(airwer.vocab.expand_callsign(match.tail) or "")
+    if not canonical:
+        return SnapResult(text=spoken, match=match, snapped=False)
+    alignment = fuzz.partial_ratio_alignment(canonical, spoken)
+    if alignment is None:
+        return SnapResult(text=spoken, match=match, snapped=False)
+    replaced = spoken[: alignment.dest_start] + canonical + spoken[alignment.dest_end :]
+    cleaned = " ".join(replaced.split())
+    return SnapResult(text=cleaned, match=match, snapped=cleaned != spoken)
 
 
 def _spoken_realizations(tail: str) -> list[str]:
