@@ -18,6 +18,7 @@ class Hypothesis:
     confidence: float | None = None
     word_confidences: tuple[float, ...] | None = None
     no_speech: float | None = None
+    nbest: tuple[tuple[str, float], ...] | None = None
 
 
 @runtime_checkable

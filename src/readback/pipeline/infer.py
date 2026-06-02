@@ -23,12 +23,15 @@ def release_gpu() -> None:
 
 
 def _hyp_row(utterance_id: str, hypothesis: Hypothesis) -> dict:
-    return {
+    row: dict[str, object] = {
         "utterance_id": utterance_id,
         "text": hypothesis.text,
         "confidence": hypothesis.confidence,
         "no_speech": hypothesis.no_speech,
     }
+    if hypothesis.nbest is not None:
+        row["nbest"] = [[text, score] for text, score in hypothesis.nbest]
+    return row
 
 
 def _write_meta(
