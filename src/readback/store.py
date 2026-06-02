@@ -33,3 +33,20 @@ def append_jsonl(path: Path, row: dict) -> None:
     with path.open("a") as handle:
         handle.write(json.dumps(row) + "\n")
         handle.flush()
+
+
+def read_jsonl_recoverable(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    lines = path.read_text().splitlines()
+    for position, line in enumerate(lines):
+        if not line.strip():
+            continue
+        try:
+            rows.append(json.loads(line))
+        except json.JSONDecodeError:
+            if position == len(lines) - 1:
+                break
+            raise
+    return rows

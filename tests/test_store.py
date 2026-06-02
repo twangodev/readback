@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import json
+
+import pytest
+
 from readback import store
 
 
@@ -33,3 +37,26 @@ def test_append_jsonl_appends_and_creates_parents(tmp_path):
     store.append_jsonl(path, {"a": 1})
     store.append_jsonl(path, {"a": 2})
     assert list(store.read_jsonl(path)) == [{"a": 1}, {"a": 2}]
+
+
+def test_read_jsonl_recoverable_missing_file_is_empty(tmp_path):
+    assert store.read_jsonl_recoverable(tmp_path / "absent.jsonl") == []
+
+
+def test_read_jsonl_recoverable_reads_complete_file(tmp_path):
+    path = tmp_path / "wal.jsonl"
+    path.write_text('{"a": 1}\n{"a": 2}\n')
+    assert store.read_jsonl_recoverable(path) == [{"a": 1}, {"a": 2}]
+
+
+def test_read_jsonl_recoverable_drops_truncated_tail(tmp_path):
+    path = tmp_path / "wal.jsonl"
+    path.write_text('{"a": 1}\n{"a": 2}\n{"a": 3, "b":')
+    assert store.read_jsonl_recoverable(path) == [{"a": 1}, {"a": 2}]
+
+
+def test_read_jsonl_recoverable_raises_on_non_tail_corruption(tmp_path):
+    path = tmp_path / "wal.jsonl"
+    path.write_text('{"a": 1}\n{bad}\n{"a": 3}\n')
+    with pytest.raises(json.JSONDecodeError):
+        store.read_jsonl_recoverable(path)
