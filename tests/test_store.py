@@ -26,3 +26,10 @@ def test_index_by_keys_on_field(tmp_path):
     path = tmp_path / "shard.jsonl"
     store.write_jsonl(path, [{"id": "u0", "v": 1}, {"id": "u1", "v": 2}])
     assert store.index_by(path, "id")["u1"]["v"] == 2
+
+
+def test_append_jsonl_appends_and_creates_parents(tmp_path):
+    path = tmp_path / "nested" / "wal.jsonl"
+    store.append_jsonl(path, {"a": 1})
+    store.append_jsonl(path, {"a": 2})
+    assert list(store.read_jsonl(path)) == [{"a": 1}, {"a": 2}]

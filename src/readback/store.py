@@ -26,3 +26,10 @@ def write_jsonl(path: Path, rows: Iterable[dict]) -> int:
             written += 1
     staging.replace(path)
     return written
+
+
+def append_jsonl(path: Path, row: dict) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as handle:
+        handle.write(json.dumps(row) + "\n")
+        handle.flush()
