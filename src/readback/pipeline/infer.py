@@ -75,6 +75,7 @@ def transcribe_shards(
                 (_hyp_row(clip.utterance_id, hyp) for clip, hyp in zip(clips, hyps)),
             )
             log(f"  {spec.name} shard {index}: {len(clips)} clips")
+            release()
         del model
     except Exception as error:
         log(f"FAILED {spec.name}: {type(error).__name__}: {error}")
