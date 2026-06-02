@@ -10,6 +10,15 @@ def to_mono_float32(samples: np.ndarray) -> np.ndarray:
     return collapsed.astype(np.float32, copy=False)
 
 
+def to_target_sr(audio: np.ndarray, sample_rate: int, target_sr: int) -> np.ndarray:
+    array = audio.astype(np.float32, copy=False)
+    if sample_rate == target_sr:
+        return array
+    import librosa
+
+    return librosa.resample(array, orig_sr=sample_rate, target_sr=target_sr)
+
+
 def bucket_by_duration[T](
     items: Sequence[T], key: Callable[[T], float], batch_size: int
 ) -> Iterator[list[T]]:

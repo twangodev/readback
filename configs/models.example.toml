@@ -6,10 +6,12 @@ batch_size = 64
 [models.canary-qwen]
 kind = "canary"
 ref = "nvidia/canary-qwen-2.5b"
+batch_size = 32
 
 [models.whisper-atc]
 kind = "whisper"
 ref = "/path/to/ct2/whisper-jlvdoorn-atco2"
+batch_size = 32
 
 [models.rasr-v1]
 kind = "parakeet"

@@ -4,6 +4,7 @@ import contextlib
 
 import numpy as np
 
+from readback.audio import to_target_sr
 from readback.models.base import Audio, Hypothesis
 
 TARGET_SR = 16000
@@ -57,7 +58,8 @@ class ParakeetTranscriber:
         if not clips:
             return []
         arrays = [
-            _pad_to_min(_to_target_sr(clip.array, clip.sample_rate)) for clip in clips
+            _pad_to_min(to_target_sr(clip.array, clip.sample_rate, TARGET_SR))
+            for clip in clips
         ]
         order = sorted(range(len(arrays)), key=lambda index: len(arrays[index]))
         outputs = self._model.transcribe(
@@ -71,16 +73,6 @@ class ParakeetTranscriber:
         for index, output in zip(order, outputs):
             results[index] = Hypothesis(text=_text_of(output))
         return [result for result in results if result is not None]
-
-
-def _to_target_sr(audio: np.ndarray, sample_rate: int) -> np.ndarray:
-    if sample_rate == TARGET_SR:
-        return audio.astype(np.float32)
-    import librosa
-
-    return librosa.resample(
-        audio.astype(np.float32), orig_sr=sample_rate, target_sr=TARGET_SR
-    )
 
 
 def _pad_to_min(audio: np.ndarray) -> np.ndarray:

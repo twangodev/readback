@@ -44,7 +44,9 @@ def build(spec: ModelSpec) -> Transcriber:
         from readback.models.canary import CanaryQwenTranscriber
 
         return CanaryQwenTranscriber(
-            spec.ref, max_new_tokens=spec.options.get("max_new_tokens", 256)
+            spec.ref,
+            max_new_tokens=spec.options.get("max_new_tokens", 256),
+            batch_size=spec.options.get("batch_size", 16),
         )
     if spec.kind == "whisper":
         from readback.models.whisper_atc import WhisperAtcTranscriber
@@ -53,5 +55,6 @@ def build(spec: ModelSpec) -> Transcriber:
             spec.ref,
             device=spec.options.get("device", "cuda"),
             compute_type=spec.options.get("compute_type", "float16"),
+            batch_size=spec.options.get("batch_size", 16),
         )
     raise ValueError(f"unknown model kind: {spec.kind!r}")
