@@ -1,8 +1,21 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable, Iterator
 from pathlib import Path
+
+
+def canonical_dumps(row: dict) -> str:
+    return json.dumps(row, sort_keys=True, separators=(",", ":"))
+
+
+def _fsync_dir(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
 
 
 def read_jsonl(path: Path) -> Iterator[dict]:
@@ -24,7 +37,10 @@ def write_jsonl(path: Path, rows: Iterable[dict]) -> int:
         for row in rows:
             handle.write(json.dumps(row) + "\n")
             written += 1
+        handle.flush()
+        os.fsync(handle.fileno())
     staging.replace(path)
+    _fsync_dir(path.parent)
     return written
 
 
@@ -33,6 +49,7 @@ def append_jsonl(path: Path, row: dict) -> None:
     with path.open("a") as handle:
         handle.write(json.dumps(row) + "\n")
         handle.flush()
+        os.fsync(handle.fileno())
 
 
 def read_jsonl_recoverable(path: Path) -> list[dict]:
