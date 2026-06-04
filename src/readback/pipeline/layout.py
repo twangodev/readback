@@ -19,6 +19,14 @@ def labels_path(run: Path, index: int) -> Path:
     return run / "labels" / f"{shard_stem(index)}.jsonl"
 
 
+def reviews_path(run: Path, index: int) -> Path:
+    return run / "reviews" / f"{shard_stem(index)}.jsonl"
+
+
+def snapshots_dir(run: Path) -> Path:
+    return run / "snapshots"
+
+
 def discover_indices(run: Path) -> list[int]:
     base = run / "meta"
     if not base.exists():
