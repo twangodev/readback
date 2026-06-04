@@ -78,5 +78,88 @@ def fuse(
 
 
 @app.command()
-def serve() -> None:
-    typer.echo("serve: not implemented yet")
+def snapshot(
+    run: Annotated[Path, typer.Option(help="Run directory with labels/ and reviews/.")],
+    name: Annotated[str, typer.Option(help="Snapshot name (snapshots/<name>.json).")],
+    tiers: Annotated[
+        str, typer.Option(help="Training-view tiers recorded in the manifest.")
+    ] = "",
+) -> None:
+    from readback.snapshot import write_snapshot
+
+    path = write_snapshot(run, name, tiers=_comma_list(tiers) or None)
+    typer.echo(str(path))
+
+
+@app.command()
+def trainset(
+    run: Annotated[Path, typer.Option(help="Run directory with labels/ and reviews/.")],
+    out: Annotated[Path, typer.Option(help="Output training JSONL manifest.")],
+    tiers: Annotated[
+        str, typer.Option(help="Auto-label tiers to include; human edits always win.")
+    ] = "gold,silver",
+) -> None:
+    from readback.trainset import write_trainset
+
+    count = write_trainset(run, out, tuple(_comma_list(tiers)))
+    typer.echo(f"{count} examples -> {out}")
+
+
+@app.command()
+def ger(
+    run: Annotated[Path, typer.Option(help="Run directory with labels/ and meta/.")],
+    base_url: Annotated[
+        str, typer.Option(help="vLLM OpenAI-compatible base URL.")
+    ] = "http://127.0.0.1:8000/v1",
+    model: Annotated[
+        str, typer.Option(help="Served model id; default the configured Qwen.")
+    ] = "",
+    shards: Annotated[str, typer.Option(help="Index spec or 'all'.")] = "all",
+    workers: Annotated[int, typer.Option(help="Concurrent correction requests.")] = 8,
+) -> None:
+    from readback.pipeline.ger import run_ger
+    from readback.serve.client import VllmClient
+    from readback.serve.vllm import DEFAULT_MODEL
+
+    indices = discover_indices(run) if shards == "all" else parse_shard_spec(shards)
+    client = VllmClient(model=model or DEFAULT_MODEL, base_url=base_url)
+    run_ger(run, indices, client=client, workers=workers)
+
+
+@app.command()
+def serve(
+    run: Annotated[Path, typer.Option(help="Run directory with labels/ and meta/.")],
+    repo: Annotated[
+        str, typer.Option(help="HF dataset repo of parquet shards.")
+    ] = DEFAULT_REPO,
+    web: Annotated[
+        Path | None,
+        typer.Option(help="Built SPA directory; defaults to web/build if present."),
+    ] = None,
+    host: Annotated[str, typer.Option(help="Bind address.")] = "127.0.0.1",
+    port: Annotated[int, typer.Option(help="Bind port.")] = 8000,
+    resident: Annotated[
+        int, typer.Option(help="Shards kept resident in the audio LRU.")
+    ] = 2,
+) -> None:
+    import fcntl
+
+    import uvicorn
+
+    from readback.server.app import build_app, hf_audio
+
+    if web is None:
+        bundled = Path(__file__).resolve().parents[2] / "web" / "build"
+        web = bundled if bundled.exists() else None
+    elif not web.exists():
+        raise typer.BadParameter(f"web directory not found: {web}")
+    run.mkdir(parents=True, exist_ok=True)
+    lock = (run / ".lock").open("w")
+    try:
+        fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError as error:
+        raise typer.BadParameter(
+            f"another studio already holds {run / '.lock'}"
+        ) from error
+    served = build_app(run, hf_audio(repo, resident), web)
+    uvicorn.run(served, host=host, port=port)
