@@ -1,0 +1,93 @@
+# readback vLLM services on ONE RTX PRO 6000 Blackwell (sm_120, 96GB, CUDA 13)
+#
+# Phase-gated, NOT always-on. Bring up only what a pipeline phase needs:
+#   infer  stage:   docker compose --profile infer up -d   transcribe
+#   silver stage:   docker compose --profile ger   up -d   ger
+# whisper (infer) and GER (silver-correction) need not coexist, so each can
+# claim a large --gpu-memory-utilization slice when run alone.
+#
+# To run BOTH at once (e.g. interleaved), the two utilization fractions below
+# must sum to < ~0.95 and you should enable MPS on the host (see notes at end).
+
+services:
+
+  # ---- transcription voter: whisper-atc (jlvdoorn whisper-large-v3 ATC) -----
+  transcribe:
+    profiles: ["infer", "all"]
+    image: vllm/vllm-openai:v0.22.0-cu130   # pin a digest in prod; cu130 for CUDA 13
+    command: >
+      --model jlvdoorn/whisper-large-v3-atcosim
+      --task transcription
+      --gpu-memory-utilization 0.30
+      --max-num-seqs 256
+      --served-model-name whisper-atc
+    ports:
+      - "8001:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - NVIDIA_VISIBLE_DEVICES=0            # informational; device pinned via deploy below
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    ipc: host                               # vLLM needs large/host shm for tensor sharing
+    shm_size: "16gb"                        # fallback if ipc:host unavailable
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 600s                    # model download + CUDA-graph capture is slow
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]             # the single Blackwell card
+              capabilities: ["gpu"]
+
+  # ---- GER stage: Qwen3.x-35B-A3B-FP8 (MoE, ~3B active) ---------------------
+  ger:
+    profiles: ["ger", "all"]
+    image: vllm/vllm-openai:v0.22.0-cu130
+    command: >
+      --model Qwen/Qwen3-35B-A3B-FP8
+      --quantization fp8
+      --kv-cache-dtype fp8
+      --gpu-memory-utilization 0.85
+      --max-model-len 8192
+      --max-num-seqs 512
+      --served-model-name ger-qwen
+    ports:
+      - "8002:8000"
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - NVIDIA_VISIBLE_DEVICES=0
+    volumes:
+      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+    ipc: host
+    shm_size: "16gb"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+      start_period: 900s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ["0"]
+              capabilities: ["gpu"]
+
+# NOTES
+# - GPU passthrough: use deploy.resources.reservations.devices (the modern path).
+#   Do NOT also set `runtime: nvidia` — combining the two is redundant/conflicting.
+#   With nvidia-container-toolkit's runtime active, device_ids:["0"] pins the card.
+# - The 0.30 + 0.85 fractions above are sized for the two services running in
+#   SEPARATE phases (each alone). If co-resident, lower GER to ~0.60 and whisper
+#   to ~0.25 so the sum stays < 0.95 and leaves headroom for fragmentation.
+# - MPS (optional): only helps if both run concurrently AND neither saturates the
+#   SMs. Enable on host: `nvidia-cuda-mps-control -d` before compose up; MPS does
+#   NOT partition VRAM, so gpu-memory-utilization is still your memory guardrail.
