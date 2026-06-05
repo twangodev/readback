@@ -1,9 +1,9 @@
 # readback
 
-Ensemble ASR pseudo-labeling for ATC audio. Three models transcribe
-[`tartanaviation-atc-adsb-utterances`](https://huggingface.co/datasets/twangodev/tartanaviation-atc-adsb-utterances),
-weighted ROVER and an ADS-B callsign prior fuse them, a studio reviews the uncertain ones, and the
-result publishes as [`tartanaviation-atc-labels`](https://huggingface.co/datasets/twangodev/tartanaviation-atc-labels):
+Ensemble ASR pseudo-labeling for Air Traffic Control.
+
+Labels [`tartanaviation-atc-adsb-utterances`](https://huggingface.co/datasets/twangodev/tartanaviation-atc-adsb-utterances)
+and publishes [`tartanaviation-atc-labels`](https://huggingface.co/datasets/twangodev/tartanaviation-atc-labels):
 531k rows, one transcript and confidence each, 1:1 onto the source.
 
 ## Pipeline
