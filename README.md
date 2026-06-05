@@ -35,7 +35,3 @@ src = load_dataset("twangodev/tartanaviation-atc-adsb-utterances", split="train"
 lab = load_dataset("twangodev/tartanaviation-atc-labels", split="train")
 joined = concatenate_datasets([src, lab], axis=1)   # 1:1, same order
 ```
-
-[`squawk`](https://github.com/twangodev/squawk) pairs the audio and ADS-B, readback labels it,
-[`rasr`](https://github.com/twangodev/rasr) trains on the labels, and
-[`airwer`](https://github.com/twangodev/airwer) keeps the WER ATC-aware.
