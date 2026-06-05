@@ -106,6 +106,17 @@ def trainset(
 
 
 @app.command()
+def publish(
+    run: Annotated[Path, typer.Option(help="Run directory with labels/ and reviews/.")],
+    out: Annotated[Path, typer.Option(help="Output published-dataset JSONL.")],
+) -> None:
+    from readback.dataset import write_dataset
+
+    count = write_dataset(run, out)
+    typer.echo(f"{count} rows -> {out}")
+
+
+@app.command()
 def ger(
     run: Annotated[Path, typer.Option(help="Run directory with labels/ and meta/.")],
     base_url: Annotated[
