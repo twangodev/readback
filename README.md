@@ -36,4 +36,4 @@ lab = load_dataset("twangodev/tartanaviation-atc-labels", split="train")
 joined = concatenate_datasets([src, lab], axis=1)   # 1:1, same order
 ```
 
-Reuses [`airwer`](../airwer), [`radiotalk-asr`](../radiotalk-asr), [`squawk`](../squawk).
+Reuses [`airwer`](https://github.com/twangodev/airwer), [`rasr`](https://github.com/twangodev/rasr), [`squawk`](https://github.com/twangodev/squawk).
