@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from readback.server.worklist import build_worklist, queue_stats
+from readback.server.worklist import (
+    GOLD_VALIDATION_BUDGET,
+    build_review_plan,
+    build_worklist,
+    queue_stats,
+)
 
 
 def _label(utterance_id: str, tier: str, **over) -> dict:
@@ -82,6 +87,41 @@ def test_queue_item_shape_and_reviewed_flag():
         "advisory_disagree": 0.3,
         "reviewed": True,
     }
+
+
+def test_gold_validation_leads_plan_and_caps_at_budget():
+    labels = {
+        0: [_label(f"g{i}", "gold") for i in range(GOLD_VALIDATION_BUDGET + 10)]
+        + [_label("s", "silver", agreement_score=0.3)]
+    }
+    plan = build_review_plan(labels, budget=40)
+    gold_items = [item for item in plan if item["reason"] == "gold-validation"]
+    assert len(gold_items) == GOLD_VALIDATION_BUDGET
+    assert all(item["tier"] == "gold" for item in gold_items)
+    assert {item["reason"] for item in plan[:GOLD_VALIDATION_BUDGET]} == {
+        "gold-validation"
+    }
+
+
+def test_gold_validation_excludes_reviewed_and_terminates():
+    gold = [f"g{i}" for i in range(GOLD_VALIDATION_BUDGET)]
+    labels = {0: [_label(g, "gold") for g in gold]}
+    plan = build_review_plan(labels, budget=40, reviewed=set(gold))
+    assert [item for item in plan if item["reason"] == "gold-validation"] == []
+
+
+def test_gold_validation_set_is_stable_and_deterministic():
+    labels = {0: [_label(f"g{i}", "gold") for i in range(GOLD_VALIDATION_BUDGET + 20)]}
+    runs = [
+        [
+            item["utterance_id"]
+            for item in build_review_plan(labels, budget=40)
+            if item["reason"] == "gold-validation"
+        ]
+        for _ in range(2)
+    ]
+    assert runs[0] == runs[1]
+    assert len(set(runs[0])) == GOLD_VALIDATION_BUDGET
 
 
 def test_queue_stats_counts_by_tier_and_reviewed():

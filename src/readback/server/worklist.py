@@ -11,6 +11,7 @@ BOUNDARY_HALFWIDTH = 0.1
 HIGH_DISAGREE = 0.5
 CALIBRATION_BINS = 10
 DEFAULT_REVIEW_BUDGET = 1000
+GOLD_VALIDATION_BUDGET = 50
 
 _ITEM_KEYS = (
     "utterance_id",
@@ -109,6 +110,16 @@ def _boundary_stratum(
     return [(shard, row) for _, _, shard, row in scored[:budget]]
 
 
+def _gold_validation_stratum(
+    pool: list[tuple[int, dict]], budget: int, reviewed: Collection[str]
+) -> list[tuple[int, dict]]:
+    gold = sorted(
+        ((shard, row) for shard, row in pool if row["tier"] == "gold"),
+        key=lambda sr: _stable_rank(sr[1]["utterance_id"]),
+    )[:budget]
+    return [(shard, row) for shard, row in gold if row["utterance_id"] not in reviewed]
+
+
 def build_review_plan(
     labels_by_shard: Mapping[int, list[dict]],
     budget: int = DEFAULT_REVIEW_BUDGET,
@@ -120,9 +131,19 @@ def build_review_plan(
         for row in labels_by_shard[shard]
         if row["tier"] != "non_speech"
     ]
-    calibration = _calibration_stratum(pool, budget // 2)
-    chosen_ids = {row["utterance_id"] for _, row in calibration}
+    gold_validation = _gold_validation_stratum(pool, GOLD_VALIDATION_BUDGET, reviewed)
+    gold_ids = {row["utterance_id"] for _, row in gold_validation}
+    calibration = [
+        (shard, row)
+        for shard, row in _calibration_stratum(pool, budget // 2)
+        if row["utterance_id"] not in gold_ids
+    ]
+    chosen_ids = gold_ids | {row["utterance_id"] for _, row in calibration}
     boundary = _boundary_stratum(pool, budget - len(calibration), chosen_ids)
+    gold_items = [
+        _plan_item(row, shard, "gold-validation", reviewed)
+        for shard, row in gold_validation
+    ]
     calibration_items = [
         _plan_item(row, shard, "calibration", reviewed) for shard, row in calibration
     ]
@@ -137,7 +158,7 @@ def build_review_plan(
             interleaved.append(boundary_item)
         if calibration_item is not None:
             interleaved.append(calibration_item)
-    return interleaved
+    return gold_items + interleaved
 
 
 def queue_stats(

@@ -112,7 +112,7 @@ def test_context_includes_conversation_neighbors(run, empty_audio):
 def test_plan_includes_calibration_and_boundary(run, empty_audio):
     plan = StudioState(run, empty_audio).plan(budget=10)
     reasons = {item["reason"] for item in plan["items"]}
-    assert reasons <= {"calibration", "boundary"}
+    assert reasons <= {"calibration", "boundary", "gold-validation"}
     assert plan["total"] >= 1
 
 
