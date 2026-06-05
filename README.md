@@ -8,12 +8,12 @@ result publishes as [`tartanaviation-atc-labels`](https://huggingface.co/dataset
 
 ## Pipeline
 
-| stage | does | writes |
-|---|---|---|
-| `infer` | three ASR models over the source shards | `meta/`, `hyps/` |
-| `fuse` | weighted ROVER + ADS-B callsign snap | `labels/` |
-| `serve` | review studio (optional) | `reviews/` |
-| `publish` | upload-ready parquet shards + card | `out/` |
+| stage | does |
+|---|---|
+| `infer` | three ASR models over the source shards |
+| `fuse` | weighted ROVER + ADS-B callsign snap |
+| `serve` | review studio (optional) |
+| `publish` | upload-ready parquet shards + card |
 
 ```bash
 uv sync
