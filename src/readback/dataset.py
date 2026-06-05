@@ -83,13 +83,12 @@ CARD = Path(__file__).with_name("dataset_card.md")
 
 def write_dataset_shards(run: Path, out_dir: Path) -> tuple[int, int]:
     """Write an upload-ready HuggingFace dataset folder: one parquet shard per
-    source shard under data/, rows in the source's exact row order, plus a
-    rendered README.md card. The labels are a 1:1 add-on to twangodev/
-    tartanaviation-atc-adsb-utterances (join on utterance_id). Returns
-    (n_shards, n_rows)."""
+    source shard (shard-NNNNN.parquet at the root, mirroring the source layout),
+    rows in the source's exact row order, plus a rendered README.md card. The
+    labels are a 1:1 add-on to twangodev/tartanaviation-atc-adsb-utterances (join
+    on utterance_id). Returns (n_shards, n_rows)."""
     log = load_review_log(run)
-    data_dir = out_dir / "data"
-    data_dir.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
     shards = rows = 0
     for path in sorted((run / "labels").glob("shard-*.jsonl")):
         records = [
@@ -97,7 +96,7 @@ def write_dataset_shards(run: Path, out_dir: Path) -> tuple[int, int]:
             for label in store.read_jsonl(path)
         ]
         table = pa.Table.from_pylist(records, schema=SCHEMA)
-        pq.write_table(table, data_dir / f"{path.stem}.parquet")
+        pq.write_table(table, out_dir / f"{path.stem}.parquet")
         shards += 1
         rows += len(records)
     card = (

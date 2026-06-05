@@ -106,12 +106,12 @@ def test_parquet_shards_mirror_source_order_and_schema(tmp_path: Path):
     shards, rows = write_dataset_shards(tmp_path, out)
     assert (shards, rows) == (2, 4)
 
-    t0 = pq.read_table(out / "data" / "shard-00000.parquet")
+    t0 = pq.read_table(out / "shard-00000.parquet")  # shards at root, mirror source
     assert t0.schema.equals(SCHEMA)  # type-uniform across shards for HF load
     assert t0.column("utterance_id").to_pylist() == ["z", "a", "m"]  # order preserved
 
-    t1 = pq.read_table(out / "data" / "shard-00001.parquet").to_pylist()
+    t1 = pq.read_table(out / "shard-00001.parquet").to_pylist()
     assert t1[0]["transcript"] == "fixed text" and t1[0]["confidence"] == 1.0
 
     card = (out / "README.md").read_text()  # upload-ready card, counts rendered
-    assert "license: cc-by-4.0" in card and "4 (100% coverage" in card
+    assert "license: cc-by-4.0" in card and "4 labels · 2 shards" in card
