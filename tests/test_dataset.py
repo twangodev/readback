@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pyarrow.parquet as pq
+
 from readback import store
-from readback.dataset import iter_dataset
+from readback.dataset import SCHEMA, iter_dataset, write_dataset_shards
 from readback.fuse.confidence import confidence_score
 from readback.pipeline.layout import labels_path, reviews_path
 
@@ -92,3 +94,20 @@ def test_uses_stored_confidence_when_label_carries_it(tmp_path: Path):
     store.write_jsonl(labels_path(tmp_path, 0), [_label("a", confidence=0.42)])
     rows = list(iter_dataset(tmp_path))
     assert rows[0]["confidence"] == 0.42
+
+
+def test_parquet_shards_mirror_source_order_and_schema(tmp_path: Path):
+    # two shards, each in a fixed (source) row order that must be preserved
+    store.write_jsonl(labels_path(tmp_path, 0), [_label("z"), _label("a"), _label("m")])
+    store.write_jsonl(labels_path(tmp_path, 1), [_label("b", transcript="model text")])
+    store.append_jsonl(reviews_path(tmp_path, 1), _set("b", "edit", "fixed text", 0))
+
+    shards, rows = write_dataset_shards(tmp_path, tmp_path / "out")
+    assert (shards, rows) == (2, 4)
+
+    t0 = pq.read_table(tmp_path / "out" / "shard-00000.parquet")
+    assert t0.schema.equals(SCHEMA)  # type-uniform across shards for HF load
+    assert t0.column("utterance_id").to_pylist() == ["z", "a", "m"]  # order preserved
+
+    t1 = pq.read_table(tmp_path / "out" / "shard-00001.parquet").to_pylist()
+    assert t1[0]["transcript"] == "fixed text" and t1[0]["confidence"] == 1.0

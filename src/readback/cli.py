@@ -108,12 +108,17 @@ def trainset(
 @app.command()
 def publish(
     run: Annotated[Path, typer.Option(help="Run directory with labels/ and reviews/.")],
-    out: Annotated[Path, typer.Option(help="Output published-dataset JSONL.")],
+    out: Annotated[
+        Path,
+        typer.Option(
+            help="Output dir for per-shard parquet (1:1 add-on to the source)."
+        ),
+    ],
 ) -> None:
-    from readback.dataset import write_dataset
+    from readback.dataset import write_dataset_shards
 
-    count = write_dataset(run, out)
-    typer.echo(f"{count} rows -> {out}")
+    shards, rows = write_dataset_shards(run, out)
+    typer.echo(f"{rows} rows across {shards} shards -> {out}")
 
 
 @app.command()
