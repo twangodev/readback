@@ -8,6 +8,7 @@ class Label:
     utterance_id: str
     transcript: str
     tier: str
+    confidence: float
     rover_confidence: float
     agreement_score: float
     n_models_agree: int

@@ -68,3 +68,22 @@ def test_advisory_disagreement_recorded():
     )
     assert label.advisory_disagree is not None
     assert label.advisory_disagree > 0.0
+
+
+def test_confidence_without_advisory_is_mean_of_agreement_and_rover():
+    label = fuse_clip("u7", [_h("cleared to land")] * 3, [])
+    assert label.confidence == 1.0
+
+
+def test_confidence_folds_in_advisory_disagreement():
+    label = fuse_clip(
+        "u8",
+        [_h("cleared to land"), _h("cleared to land"), _h("cleared to land")],
+        [],
+        advisory=[_h("cleared for takeoff")],
+    )
+    expected = (
+        label.agreement_score + label.rover_confidence + (1.0 - label.advisory_disagree)
+    ) / 3
+    assert abs(label.confidence - expected) < 1e-9
+    assert label.confidence < label.rover_confidence

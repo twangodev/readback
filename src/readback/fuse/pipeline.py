@@ -4,6 +4,7 @@ import airwer
 
 from readback.callsign import snap
 from readback.fuse.agreement import agreement
+from readback.fuse.confidence import confidence_score
 from readback.fuse.rover import rover
 from readback.fuse.tier import Tier, classify
 from readback.models.base import Hypothesis
@@ -45,10 +46,13 @@ def fuse_clip(
     if advisory:
         advisory_disagree = 1.0 - airwer.agreement(fused.text, advisory[0].text)
 
+    confidence = confidence_score(agree.score, fused.confidence, advisory_disagree)
+
     return Label(
         utterance_id=utterance_id,
         transcript="" if tier is Tier.NON_SPEECH else snapped.text,
         tier=tier.value,
+        confidence=confidence,
         rover_confidence=fused.confidence,
         agreement_score=agree.score,
         n_models_agree=agree.n_agree,
